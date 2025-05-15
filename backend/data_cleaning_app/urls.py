@@ -1,6 +1,6 @@
 from django.urls import path
-from .views import XLSXUploadView
+from .views import ManageDataFrameView
 
 urlpatterns = [
-    path('upload-xlsx/', XLSXUploadView.as_view(), name='upload-xlsx'),
+    path('dataframe/', ManageDataFrameView.as_view(), name='manage-dataframe'),
 ]
