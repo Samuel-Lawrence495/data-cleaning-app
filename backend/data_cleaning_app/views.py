@@ -26,17 +26,31 @@ class XLSXUploadView(APIView):
             return Response({"error": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
 
         uploaded_file = request.FILES['file']
+        filename = uploaded_file.name.lower()
 
-        if not uploaded_file.name.endswith('.xlsx'):
-            return Response({"error": "File is not a .xlsx file."}, status=status.HTTP_400_BAD_REQUEST)
+        # Handle invalid file types
+        if not (filename.endswith('.xlsx') or filename.endswith('.csv')):
+            return Response({"error": "Invalid file type. Please upload a .xlsx or .csv file."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        xlsx = False
+        csv = False
+        if uploaded_file.name.endswith('.xlsx'):
+            xlsx = True
+        elif uploaded_file.name.endswith('.csv'):
+            csv = True
+        else:
+            return Response({"Error": "Not a valid file extension"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             # Read the file in-memory 
             ### May need to change handling for larger files
-            df = pd.read_excel(uploaded_file, engine='openpyxl')
+            if xlsx == True:
+                df = pd.read_excel(uploaded_file, engine='openpyxl')
+            if csv == True:
+                df = pd.read_csv(uploaded_file)
 
             # Prepare data for JSON response (e.g., first 10 rows)
-            num_preview_rows = 10
+            num_preview_rows = 100
             headers = df.columns.tolist()
             # Convert NaN/NaT to None (or string "N/A") for JSON serialization
             rows_data = df.head(num_preview_rows).fillna('').astype(str).values.tolist()
