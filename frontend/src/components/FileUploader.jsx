@@ -32,6 +32,7 @@ function FileUploader({ onDataLoaded, onError, setIsLoading, isLoading }) { // P
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
+                withCredentials: true,
             });
             console.log('FileUploader: Upload successful, response.data:', response.data);
             if (onDataLoaded) {

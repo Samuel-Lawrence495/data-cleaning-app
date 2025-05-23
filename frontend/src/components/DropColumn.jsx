@@ -25,7 +25,10 @@ function DropColumn({ initialData, onDataUpdated, onError }) {
         if (onError) onError('');
 
         try {
-            const response = await axios.put(API_DATAFRAME_URL, { column_name: columnName });
+            const response = await axios.put(API_DATAFRAME_URL, 
+                { column_name: columnName },
+                { withCredentials: true }
+            );
             setData(response.data); // Update local state
             if (onDataUpdated) onDataUpdated(response.data); // Inform parent
             if (response.data.headers.length === 0) setIsEditMode(false);
