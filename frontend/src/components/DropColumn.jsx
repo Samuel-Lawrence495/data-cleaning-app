@@ -91,7 +91,10 @@ function DropColumn({ initialData, onDataUpdated, onError }) {
                         <tr>
                             {data.headers.map((header, index) => (
                                 <th key={index} style={{
-                                    padding: '10px 12px', // Increased padding for better look
+                                    paddingTop: isEditMode ? '30px' : '10px', // e.g., 30px top padding in edit mode
+                                    paddingBottom: '10px',
+                                    paddingLeft: '12px',
+                                    paddingRight: '12px',
                                     textAlign: 'left',
                                     position: 'relative', // For positioning the 'X' button
                                     whiteSpace: 'nowrap', // Prevent header text from wrapping
@@ -106,7 +109,7 @@ function DropColumn({ initialData, onDataUpdated, onError }) {
                                             title={`Drop column: ${header}`}
                                             style={{
                                                 position: 'absolute',
-                                                top: '-12px', // Adjusted for better visual placement
+                                                top: '12px', // Adjusted for better visual placement
                                                 left: '50%',
                                                 transform: 'translateX(-50%)',
                                                 background: 'rgba(255, 0, 0, 0.7)', // Slightly transparent red
