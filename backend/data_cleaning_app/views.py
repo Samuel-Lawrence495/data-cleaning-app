@@ -1,9 +1,11 @@
-from django.shortcuts import render 
+from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 import pandas as pd
+import io
+import traceback 
 
 class ManageDataFrameView(APIView):
     parser_classes = (MultiPartParser, FormParser, JSONParser)
@@ -34,56 +36,43 @@ class ManageDataFrameView(APIView):
         if df is not None:
             try:
                 serialized_df = df.to_json(orient='split')
-                print(f"DJANGO _save_df_to_session: Serialized DF (first 100 chars): {serialized_df[:100]}")
+                # print(f"DJANGO _save_df_to_session: Serialized DF (first 100 chars): {serialized_df[:100]}")
                 request.session['current_dataframe_json'] = serialized_df
                 if filename:
                     request.session['current_filename'] = filename
-                # Ensure current_filename is set if not provided but df exists
                 elif 'current_filename' not in request.session:
                      request.session['current_filename'] = 'edited_file.xlsx'
 
-                request.session.save() # Explicitly save the session
+                request.session.save()
                 print(f"DJANGO _save_df_to_session: Saved 'current_dataframe_json' and 'current_filename'. Session ID after save: {request.session.session_key}")
                 print(f"DJANGO _save_df_to_session: Session keys after save: {list(request.session.keys())}")
             except Exception as e:
                 print(f"DJANGO _save_df_to_session: ERROR serializing or saving to session: {e}")
         else:
-            # Clear session data if df is None
             if 'current_dataframe_json' in request.session:
                 del request.session['current_dataframe_json']
             if 'current_filename' in request.session:
                 del request.session['current_filename']
-            request.session.save() # Explicitly save the session when clearing
+            request.session.save()
             print(f"DJANGO _save_df_to_session: Cleared session data. Session ID after clear: {request.session.session_key}")
 
-
     def _prepare_preview_response(self, df, filename, message="Preview updated."):
-        """Helper to create the JSON response for the frontend."""
-        if df is None or filename is None: 
+        if df is None or filename is None:
             return {
-                "filename": filename or "N/A",
-                "headers": [],
-                "rows": [],
-                "total_rows_in_file": 0,
-                "preview_rows_shown": 0,
+                "filename": filename or "N/A", "headers": [], "rows": [],
+                "total_rows_in_file": 0, "preview_rows_shown": 0,
                 "message": "No data to display or filename missing."
             }
-
         num_preview_rows = 100
         headers = df.columns.tolist()
         df_preview = df.head(num_preview_rows)
         rows_data = df_preview.fillna('').astype(str).values.tolist()
-
         return {
-            "filename": filename,
-            "headers": headers,
-            "rows": rows_data,
-            "total_rows_in_file": len(df),
-            "preview_rows_shown": len(rows_data),
+            "filename": filename, "headers": headers, "rows": rows_data,
+            "total_rows_in_file": len(df), "preview_rows_shown": len(rows_data),
             "message": message
         }
 
-    # Handles initial file upload
     def post(self, request, *args, **kwargs):
         print(f"DJANGO POST: Received request. Session ID on entry: {request.session.session_key}")
         if 'file' not in request.FILES:
@@ -103,8 +92,7 @@ class ManageDataFrameView(APIView):
                 df = pd.read_csv(uploaded_file)
             print(f"DJANGO POST: File read into DataFrame. Shape: {df.shape}")
 
-            # Save DataFrame and original filename to session
-            self._save_df_to_session(request, df, uploaded_file.name)
+            self._save_df_to_session(request, df, uploaded_file.name) # Pass filename
 
             response_data = self._prepare_preview_response(df, uploaded_file.name, "File processed successfully.")
             print("DJANGO POST: Prepared response, returning to client.")
@@ -112,16 +100,14 @@ class ManageDataFrameView(APIView):
 
         except pd.errors.EmptyDataError:
             print("DJANGO POST: Error - EmptyDataError")
-            self._save_df_to_session(request, None) # Clear any previous session df
+            self._save_df_to_session(request, None)
             return Response({"error": "The uploaded file is empty."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             print(f"DJANGO POST: Error processing upload: {e}")
-            import traceback
-            traceback.print_exc() # Print full traceback for debugging
-            self._save_df_to_session(request, None) # Clear any previous session df
+            traceback.print_exc()
+            self._save_df_to_session(request, None)
             return Response({"error": f"Error processing file: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # Handles dropping a column
     def put(self, request, *args, **kwargs):
         print(f"DJANGO PUT: Received request. Session ID on entry: {request.session.session_key}")
         print(f"DJANGO PUT: Request data: {request.data}")
@@ -132,49 +118,84 @@ class ManageDataFrameView(APIView):
             return Response({"error": "No column_name provided to drop."}, status=status.HTTP_400_BAD_REQUEST)
 
         df = self._get_df_from_session(request)
-        # Retrieve filename from session; it should have been set by POST
         filename = request.session.get('current_filename')
 
-        if df is None: # _get_df_from_session already prints details
+        if df is None: 
             return Response({"error": "No active DataFrame in session. Please upload a file first."}, status=status.HTTP_400_BAD_REQUEST)
-        if filename is None: # Should not happen if POST worked
+        if filename is None: 
              print("DJANGO PUT: Error - 'current_filename' not found in session, though DataFrame exists.")
              return Response({"error": "Session inconsistency: Filename missing. Please re-upload."}, status=status.HTTP_400_BAD_REQUEST)
-
 
         print(f"DJANGO PUT: DataFrame columns before drop: {df.columns.tolist()}")
         if column_to_drop not in df.columns:
             print(f"DJANGO PUT: Column '{column_to_drop}' not found in DataFrame.")
             response_data = self._prepare_preview_response(df, filename, f"Column '{column_to_drop}' not found in the current data.")
-            # Still save the (unchanged) df to session to refresh its expiry, perhaps
-            self._save_df_to_session(request, df, filename)
-            return Response(response_data, status=status.HTTP_200_OK) # Client might see this as success if it updates UI
+            self._save_df_to_session(request, df, filename) 
+            return Response(response_data, status=status.HTTP_200_OK)
 
         try:
             df.drop(columns=[column_to_drop], inplace=True)
             print(f"DJANGO PUT: DataFrame columns after drop: {df.columns.tolist()}")
-            self._save_df_to_session(request, df, filename) # Save modified DataFrame
+            self._save_df_to_session(request, df, filename) 
 
             response_data = self._prepare_preview_response(df, filename, f"Column '{column_to_drop}' dropped successfully.")
             print("DJANGO PUT: Prepared response, returning to client.")
             return Response(response_data, status=status.HTTP_200_OK)
         except Exception as e:
             print(f"DJANGO PUT: Error during df.drop or save: {e}")
-            import traceback
             traceback.print_exc()
             return Response({"error": f"Error dropping column: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
     def get(self, request, *args, **kwargs):
-        print(f"DJANGO GET: Received request. Session ID on entry: {request.session.session_key}")
+        print(f"DJANGO GET: Received request. Path: {request.path}, Session ID: {request.session.session_key}")
+        print(f"DJANGO GET: kwargs from URL: {kwargs}")
+
         df = self._get_df_from_session(request)
-        filename = request.session.get('current_filename')
+        filename_in_session = request.session.get('current_filename')
 
-        # If df is None OR filename is None, we consider the session state incomplete for preview
-        if df is None or filename is None:
-             print("DJANGO GET: No complete active data in session for GET request.")
-             # Send a response that frontend can interpret as "no data"
-             return Response(self._prepare_preview_response(None, None, "No active data session found. Please upload a file."), status=status.HTTP_200_OK)
+        download_format = kwargs.get('download_format') 
 
-        response_data = self._prepare_preview_response(df, filename, "Current data preview retrieved.")
-        print("DJANGO GET: Prepared response, returning to client.")
-        return Response(response_data, status=status.HTTP_200_OK)
+        if df is None or filename_in_session is None:
+            if download_format: 
+                print(f"DJANGO GET ({download_format.upper()} Download): Error - No active data to download.")
+                return Response({"error": "No active data to download. Please upload a file first."}, status=status.HTTP_404_NOT_FOUND)
+            else: 
+                print("DJANGO GET (Preview): No complete active data session found for preview.")
+                return Response(self._prepare_preview_response(None, None, "No active data session found."), status=status.HTTP_200_OK)
+
+        if download_format: 
+            try:
+                try:
+                    base_name, original_ext = filename_in_session.rsplit('.', 1)
+                except ValueError: 
+                    base_name = filename_in_session
+                output_filename = f"{base_name}_cleaned.{download_format}"
+
+                if download_format == 'xlsx':
+                    buffer = io.BytesIO()
+                    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                        df.to_excel(writer, index=False, sheet_name='Sheet1')
+                    file_content = buffer.getvalue()
+                    content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                elif download_format == 'csv':
+                    string_buffer = io.StringIO()
+                    df.to_csv(string_buffer, index=False)
+                    file_content = string_buffer.getvalue().encode('utf-8')
+                    content_type = 'text/csv'
+                else:
+                    return Response({"error": "Internal server error: Invalid download format specified."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+                response = HttpResponse(file_content, content_type=content_type)
+                response['Content-Disposition'] = f'attachment; filename="{output_filename}"'
+                print(f"DJANGO GET ({download_format.upper()} Download): Sending file '{output_filename}'")
+                return response
+
+            except Exception as e:
+                print(f"DJANGO GET ({download_format.upper()} Download): Error preparing file: {e}")
+                traceback.print_exc()
+                return Response({"error": f"Server error preparing file for download: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            response_data = self._prepare_preview_response(df, filename_in_session, "Current data preview retrieved.")
+            print("DJANGO GET (Preview): Prepared response, returning to client.")
+            return Response(response_data, status=status.HTTP_200_OK)

@@ -12,10 +12,8 @@ function DropColumn({ initialData, onDataUpdated, onError }) {
 
     useEffect(() => {
         console.log("DropColumn: initialData prop changed", initialData);
-        setData(initialData);
-        // When new initialData comes (e.g., after a fresh file upload),
-        // should we reset edit mode? For now, let's not, to see if that's the issue.
-        // If initialData becomes null (e.g. parent cleared it due to error), then exit edit mode.
+        setData(initialData);    
+
         if (!initialData) {
             setIsEditMode(false);
         }
@@ -48,10 +46,7 @@ function DropColumn({ initialData, onDataUpdated, onError }) {
             );
             console.log('DropColumn: PUT request successful, response.data:', response.data);
 
-            // Update local data state FIRST
             setData(response.data);
-
-            // Then inform parent
             if (onDataUpdated) {
                 onDataUpdated(response.data);
             }
@@ -81,12 +76,8 @@ function DropColumn({ initialData, onDataUpdated, onError }) {
 
 
     // Conditional rendering if no valid data is available to display as a table
-    if (!data || !data.filename || !data.headers ) { // Check for filename and headers
-        // If initialData was passed as null from HomePage, this will trigger.
-        // Or if data was cleared.
-        // This should NOT trigger if data is valid but just has 0 rows or 0 columns *after an operation*.
-        // The table rendering logic below handles 0 columns/rows if data.filename still exists.
-        if (initialData && initialData.filename) { // If there was an initial file, but now it's bad
+    if (!data || !data.filename || !data.headers ) { 
+        if (initialData && initialData.filename) { 
              return <p>Error with data state. Try re-uploading.</p>;
         }
         return null; 
@@ -119,7 +110,7 @@ function DropColumn({ initialData, onDataUpdated, onError }) {
                         <thead>
                             <tr>
                                 {data.headers.map((header, index) => (
-                                    <th key={`${header}-${index}`} // More unique key
+                                    <th key={`${header}-${index}`} 
                                         style={{
                                         paddingTop: isEditMode ? '30px' : '10px',
                                         paddingBottom: '10px', paddingLeft: '12px', paddingRight: '12px',
