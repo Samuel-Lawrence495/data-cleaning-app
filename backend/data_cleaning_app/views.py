@@ -7,6 +7,75 @@ import pandas as pd
 import io
 import traceback 
 
+# --------------
+# Helpers
+# --------------
+
+class Helpers:
+    def _get_df_from_session(self, request):
+        """Helper to retrieve and deserialize DataFrame from session."""
+        serialized_df = request.session.get('current_dataframe_json')
+        if serialized_df:
+            try:
+                df = pd.read_json(serialized_df, orient='split')
+                return df
+            except Exception as e:
+                print(f"MIXIN _get_df_from_session: ERROR deserializing DataFrame: {e}")
+                if 'current_dataframe_json' in request.session:
+                    del request.session['current_dataframe_json']
+                    request.session.save()
+                return None
+        return None
+
+    def _save_df_to_session(self, request, df, filename=None):
+        """Helper to serialize and save DataFrame and filename to session."""
+        if df is not None:
+            try:
+                serialized_df = df.to_json(orient='split')
+                request.session['current_dataframe_json'] = serialized_df
+                if filename: # Only update filename if explicitly provided
+                    request.session['current_filename'] = filename
+                elif 'current_filename' not in request.session and filename is None: # Fallback if never set
+                     request.session['current_filename'] = 'edited_file.xlsx'
+
+                request.session.save()
+                # print(f"MIXIN _save_df_to_session: Saved data. Session keys: {list(request.session.keys())}")
+            except Exception as e:
+                print(f"MIXIN _save_df_to_session: ERROR serializing or saving: {e}")
+        else: # Clear session data if df is None
+            if 'current_dataframe_json' in request.session:
+                del request.session['current_dataframe_json']
+            if 'current_filename' in request.session: # Optionally clear filename too or leave it
+                del request.session['current_filename']
+            request.session.save()
+            # print(f"MIXIN _save_df_to_session: Cleared session data.")
+
+    def _get_current_filename_from_session(self, request):
+        return request.session.get('current_filename')
+
+    def _prepare_preview_response(self, df, filename, message="Preview updated."):
+        """Helper to create the JSON response for the frontend."""
+        if df is None or filename is None:
+            return {
+                "filename": filename or "N/A", "headers": [], "rows": [],
+                "total_rows_in_file": 0, "preview_rows_shown": 0,
+                "message": "No data to display or filename missing."
+            }
+        num_preview_rows = 100
+        headers = df.columns.tolist()
+        df_preview = df.head(num_preview_rows)
+        rows_data = df_preview.fillna('').astype(str).values.tolist()
+        return {
+            "filename": filename, "headers": headers, "rows": rows_data,
+            "total_rows_in_file": len(df), "preview_rows_shown": len(rows_data),
+            "message": message
+        }
+    
+# -----------------------------------------
+# DataFrame state management
+# -----------------------------------------
+
+# Manage DataFrame & drop columns
 class ManageDataFrameView(APIView):
     parser_classes = (MultiPartParser, FormParser, JSONParser)
 
@@ -199,3 +268,46 @@ class ManageDataFrameView(APIView):
             response_data = self._prepare_preview_response(df, filename_in_session, "Current data preview retrieved.")
             print("DJANGO GET (Preview): Prepared response, returning to client.")
             return Response(response_data, status=status.HTTP_200_OK)
+
+# ------------------------------------
+# Missing value operations
+# ------------------------------------
+
+# Drop rows that have any missing values
+class DropMissingRowsView(Helpers, APIView):
+    parser_classes = [JSONParser]
+
+    def post(self, request, *args, **kwargs):
+        print(f"DJANGO DropMissingRowsView POST: Received request. Session ID: {request.session.session_key}")
+        print(f"DJANGO DropMissingRowsView POST: Request data: {request.data}")
+
+        df = self._get_df_from_session(request)
+        filename = self._get_current_filename_from_session(request)
+
+        if df is None or filename is None:
+            print("DJANGO DropMissingRowsView POST: No active DataFrame or filename in session.")
+            return Response({"error": "No active data session. Please upload a file first."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            original_row_count = len(df)
+            df_cleaned = df.dropna() # Default how='any', axis=0 (rows)
+            rows_dropped = original_row_count - len(df_cleaned)
+
+            self._save_df_to_session(request, df_cleaned) # Save the modified DataFrame
+
+            message = f"{rows_dropped} row(s) with any missing values dropped successfully."
+            if rows_dropped == 0:
+                message = "No rows found with missing values to drop."
+            
+            print(f"DJANGO DropMissingRowsView POST: {message}")
+            response_data = self._prepare_preview_response(df_cleaned, filename, message)
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"DJANGO DropMissingRowsView POST: Error dropping missing rows: {e}")
+            traceback.print_exc()
+            return Response({"error": f"An error occurred while dropping missing rows: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+        
