@@ -309,5 +309,125 @@ class DropMissingRowsView(Helpers, APIView):
             return Response({"error": f"An error occurred while dropping missing rows: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# -----------------
+# Filtering
+# -----------------
 
-        
+class FilterRowsView(Helpers, APIView):
+    parser_classes = [JSONParser]
+
+    def post(self, request, *args, **kwargs):
+        print(f"DJANGO FilterRowsView POST: Received request. Session ID: {request.session.session_key}")
+        print(f"DJANGO FilterRowsView POST: Request data: {request.data}")
+
+        df = self._get_df_from_session(request)
+        filename = self._get_current_filename_from_session(request)
+
+        if df is None or filename is None:
+            print("DJANGO FilterRowsView POST: No active DataFrame or filename in session.")
+            return Response({"error": "No active data session. Please upload a file first."}, status=status.HTTP_400_BAD_REQUEST)
+
+        column_name = request.data.get('column_name')
+        operator = request.data.get('operator')
+        value_to_filter = request.data.get('value') # This will be a string from JSON
+
+        if not all([column_name, operator, value_to_filter is not None]): # value_to_filter can be 0 or False
+            return Response({"error": "Missing parameters: column_name, operator, or value required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if column_name not in df.columns:
+            return Response({"error": f"Column '{column_name}' not found in the data."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            original_row_count = len(df)
+            col_dtype = df[column_name].dtype  
+            filtered_df = df.copy() 
+
+            if operator in ['>', '>=', '<', '<=']:
+                try:
+                    # Try to convert both column and value to numeric for comparison
+                    ### This might raise errors if conversion isn't possible
+                    numeric_column = pd.to_numeric(filtered_df[column_name], errors='coerce')
+                    numeric_value = float(value_to_filter) # Or int?
+
+                    if operator == '>':
+                        filtered_df = filtered_df[numeric_column > numeric_value]
+                    elif operator == '>=':
+                        filtered_df = filtered_df[numeric_column >= numeric_value]
+                    elif operator == '<':
+                        filtered_df = filtered_df[numeric_column < numeric_value]
+                    elif operator == '<=':
+                        filtered_df = filtered_df[numeric_column <= numeric_value]
+                except ValueError:
+                    return Response({"error": f"Cannot perform numeric comparison on column '{column_name}' with value '{value_to_filter}'. Ensure data types are compatible."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            elif operator == '==':
+                # For equality, try to match type if possible, otherwise string comparison
+                try:
+                    if pd.api.types.is_numeric_dtype(col_dtype):
+                        typed_value = pd.to_numeric(value_to_filter)
+                        filtered_df = filtered_df[pd.to_numeric(filtered_df[column_name], errors='coerce') == typed_value]
+                    elif pd.api.types.is_datetime64_any_dtype(col_dtype):
+                        typed_value = pd.to_datetime(value_to_filter)
+                        filtered_df = filtered_df[pd.to_datetime(filtered_df[column_name], errors='coerce') == typed_value]
+                    elif pd.api.types.is_bool_dtype(col_dtype):
+                        typed_value = str(value_to_filter).lower() in ['true', '1', 'yes']
+                        # Be careful with boolean conversion from string
+                        bool_series = filtered_df[column_name].astype(str).str.lower().isin(['true', '1', 'yes'])
+                        filtered_df = filtered_df[bool_series == typed_value]
+                    else: # Default to string comparison
+                        filtered_df = filtered_df[filtered_df[column_name].astype(str) == str(value_to_filter)]
+                except Exception as e_conv:
+                     print(f"Type conversion error for '==' operator: {e_conv}")
+                     # Fallback to string comparison if conversion fails
+                     filtered_df = filtered_df[filtered_df[column_name].astype(str) == str(value_to_filter)]
+
+            elif operator == '!=':
+                try:
+                    if pd.api.types.is_numeric_dtype(col_dtype):
+                        typed_value = pd.to_numeric(value_to_filter)
+                        filtered_df = filtered_df[pd.to_numeric(filtered_df[column_name], errors='coerce') != typed_value]
+                    elif pd.api.types.is_datetime64_any_dtype(col_dtype):
+                        typed_value = pd.to_datetime(value_to_filter)
+                        filtered_df = filtered_df[pd.to_datetime(filtered_df[column_name], errors='coerce') != typed_value]
+                    elif pd.api.types.is_bool_dtype(col_dtype):
+                        typed_value = str(value_to_filter).lower() in ['true', '1', 'yes']
+                        bool_series = filtered_df[column_name].astype(str).str.lower().isin(['true', '1', 'yes'])
+                        filtered_df = filtered_df[bool_series != typed_value]
+                    else: # Default to string comparison
+                        filtered_df = filtered_df[filtered_df[column_name].astype(str) != str(value_to_filter)]
+                except Exception as e_conv:
+                     print(f"Type conversion error for '!=' operator: {e_conv}")
+                     filtered_df = filtered_df[filtered_df[column_name].astype(str) != str(value_to_filter)]
+
+            elif operator == 'contains':
+                if pd.api.types.is_string_dtype(col_dtype) or col_dtype == object :
+                    # Ensure column is string type for .str accessor
+                    filtered_df = filtered_df[filtered_df[column_name].astype(str).str.contains(str(value_to_filter), case=False, na=False)]
+                else:
+                    return Response({"error": "'contains' operator is only for text columns."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            elif operator == 'not_contains':
+                if pd.api.types.is_string_dtype(col_dtype) or col_dtype == object :
+                    filtered_df = filtered_df[~filtered_df[column_name].astype(str).str.contains(str(value_to_filter), case=False, na=False)]
+                else:
+                    return Response({"error": "'not_contains' operator is only for text columns."}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"error": f"Unsupported operator: '{operator}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+            rows_remaining = len(filtered_df)
+            rows_filtered_out = original_row_count - rows_remaining
+
+            self._save_df_to_session(request, filtered_df)
+
+            message = f"{rows_filtered_out} row(s) filtered out based on condition: '{column_name} {operator} {value_to_filter}'. {rows_remaining} row(s) remaining."
+            if rows_filtered_out == 0 :
+                 message = f"No rows met the filter condition to be removed: '{column_name} {operator} {value_to_filter}'. All {original_row_count} rows remain."
+            
+            print(f"DJANGO FilterRowsView POST: {message}")
+            response_data = self._prepare_preview_response(filtered_df, filename, message)
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"DJANGO FilterRowsView POST: Error filtering rows: {e}")
+            traceback.print_exc()
+            return Response({"error": f"An error occurred while filtering rows: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

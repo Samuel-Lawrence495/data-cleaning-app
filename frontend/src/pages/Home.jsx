@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { saveAs } from 'file-saver';
-
 import FileUploader from '../components/FileUploader';
 import DropColumn from '../components/DropColumn';
 import DropMissingRowsButton from '../components/DropMissing'; 
+import FilterRowsForm from '../components/FilterRowsForm';
 
 const API_DATAFRAME_BASE_URL = 'http://localhost:8000/data_cleaning_app/dataframe/';
 const API_DOWNLOAD_CSV_URL = `${API_DATAFRAME_BASE_URL}download/csv/`;
@@ -155,6 +155,16 @@ function HomePage() {
                                 />
                                 {/* Add more buttons for other missing data ops here later */}
                             </div>
+                            {/* Row filtering */}
+                            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px dashed #ccc' }}>
+                            <h4>Filter Data:</h4>
+                            <FilterRowsForm
+                                columns={sheetData.headers || []} // Pass available columns
+                                onOperationComplete={handleOperationComplete}
+                                onError={handleError}
+                                mainIsLoading={isLoading || isDownloading || isProcessingOperation}
+                            />
+                        </div>
                         </section>
 
                         {sheetData.headers && sheetData.headers.length > 0 ? (
