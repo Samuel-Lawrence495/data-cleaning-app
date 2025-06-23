@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import DropMissingRowsButton from './DropMissing'; // Assuming this is now just a button
-import FilterRowsForm from './FilterRowsForm'; // Your existing filter form
-import ReplaceMissingValuesForm from './ReplaceMissing'; // Your existing impute form
+import DropMissingRowsButton from './DropMissing'; 
+import FilterRowsForm from './FilterRowsForm'; 
+import ReplaceMissingValuesForm from './ReplaceMissing'; 
 
 // You'll pass API URLs or handler functions from HomePage
 // For simplicity, let's assume HomePage handles the API calls via callbacks
@@ -52,7 +52,7 @@ function CleaningToolbar({
                 <span style={toolbarStyle.groupLabel}>Edit Table:</span>
                 {sheetData.headers && sheetData.headers.length > 0 && (
                      <button onClick={onToggleTableEditMode} disabled={mainIsLoading} style={toolbarStyle.button}>
-                        {isTableInEditMode ? 'View Mode (Hide X)' : 'Edit Columns (Show X)'}
+                        {isTableInEditMode ? 'View Mode' : 'Edit Mode'}
                     </button>
                 )}
             </div>
@@ -60,8 +60,7 @@ function CleaningToolbar({
 
             <div style={toolbarStyle.group}>
                 <span style={toolbarStyle.groupLabel}>Missing Values:</span>
-                {/* Using the DropMissingRowsButton component as an example of how it might be integrated */}
-                <DropMissingRowsButton // This component already has its own API call logic
+                <DropMissingRowsButton
                     currentSheetData={sheetData}
                     onOperationComplete={onOperationComplete} // HomePage's handler
                     onError={onError}
@@ -138,7 +137,7 @@ const toolbarStyle = {
         borderRadius: '4px',
     },
     formContainer: {
-        width: '100%', // Make forms take full width if they appear
+        width: '100%', 
         marginTop: '10px',
         paddingTop: '10px',
         borderTop: '1px dashed #eee',
