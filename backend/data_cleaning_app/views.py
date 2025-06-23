@@ -273,7 +273,42 @@ class ManageDataFrameView(APIView):
 # Missing value operations
 # ------------------------------------
 
-# Drop rows that have any missing values
+# Drop rows that have ALL missing values
+class DropMissingRowsAllView(Helpers, APIView):
+    parser_classes = [JSONParser]
+
+    def post(self, request, *args, **kwargs):
+        print(f"DJANGO DropMissingRowsView POST: Received request. Session ID: {request.session.session_key}")
+        print(f"DJANGO DropMissingRowsView POST: Request data: {request.data}")
+
+        df = self._get_df_from_session(request)
+        filename = self._get_current_filename_from_session(request)
+
+        if df is None or filename is None:
+            print("DJANGO DropMissingRowsView POST: No active DataFrame or filename in session.")
+            return Response({"error": "No active data session. Please upload a file first."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            original_row_count = len(df)
+            df_cleaned = df.dropna(how='all', axis=0) 
+            rows_dropped = original_row_count - len(df_cleaned)
+
+            self._save_df_to_session(request, df_cleaned) # Save the modified DataFrame
+
+            message = f"{rows_dropped} row(s) with all missing values dropped successfully."
+            if rows_dropped == 0:
+                message = "No rows found with all missing values to drop."
+            
+            print(f"DJANGO DropMissingRowsView POST: {message}")
+            response_data = self._prepare_preview_response(df_cleaned, filename, message)
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"DJANGO DropMissingRowsView POST: Error dropping missing rows: {e}")
+            traceback.print_exc()
+            return Response({"error": f"An error occurred while dropping missing rows: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Drop rows that have ANY missing values
 class DropMissingRowsView(Helpers, APIView):
     parser_classes = [JSONParser]
 
