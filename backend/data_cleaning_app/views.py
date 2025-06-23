@@ -273,75 +273,52 @@ class ManageDataFrameView(APIView):
 # Missing value operations
 # ------------------------------------
 
-# Drop rows that have ALL missing values
-class DropMissingRowsAllView(Helpers, APIView):
+# Replace with 0
+
+
+class HandleMissingRowsView(Helpers, APIView):
     parser_classes = [JSONParser]
 
     def post(self, request, *args, **kwargs):
-        print(f"DJANGO DropMissingRowsView POST: Received request. Session ID: {request.session.session_key}")
-        print(f"DJANGO DropMissingRowsView POST: Request data: {request.data}")
+        print(f"DJANGO HandleMissingRowsView POST: Received request. Session ID: {request.session.session_key}")
+        print(f"DJANGO HandleMissingRowsView POST: Request data: {request.data}")
 
         df = self._get_df_from_session(request)
         filename = self._get_current_filename_from_session(request)
 
         if df is None or filename is None:
-            print("DJANGO DropMissingRowsView POST: No active DataFrame or filename in session.")
+            print("DJANGO HandleMissingRowsView POST: No active DataFrame or filename in session.")
             return Response({"error": "No active data session. Please upload a file first."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get the strategy from the request data, default to 'any' if not provided
+        # 'any': drop row if any NA values are present
+        # 'all': drop row only if all values are NA
+        drop_strategy = request.data.get('strat', 'any').lower()
+
+        if drop_strategy not in ['any', 'all']:
+            return Response({"error": "Invalid 'strategy' parameter. Must be 'any' or 'all'."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             original_row_count = len(df)
-            df_cleaned = df.dropna(how='all', axis=0) 
+            # Apply dropna with the specified strategy
+            df_cleaned = df.dropna(how=drop_strategy, axis=0) # axis=0 for rows
             rows_dropped = original_row_count - len(df_cleaned)
 
             self._save_df_to_session(request, df_cleaned) # Save the modified DataFrame
 
-            message = f"{rows_dropped} row(s) with all missing values dropped successfully."
+            strategy_desc = "any missing values" if drop_strategy == 'any' else "all missing values"
+            message = f"{rows_dropped} row(s) with {strategy_desc} dropped successfully."
             if rows_dropped == 0:
-                message = "No rows found with all missing values to drop."
+                message = f"No rows found with {strategy_desc} to drop."
             
-            print(f"DJANGO DropMissingRowsView POST: {message}")
+            print(f"DJANGO HandleMissingRowsView POST: {message}")
             response_data = self._prepare_preview_response(df_cleaned, filename, message)
             return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
-            print(f"DJANGO DropMissingRowsView POST: Error dropping missing rows: {e}")
+            print(f"DJANGO HandleMissingRowsView POST: Error processing missing rows: {e}")
             traceback.print_exc()
-            return Response({"error": f"An error occurred while dropping missing rows: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-# Drop rows that have ANY missing values
-class DropMissingRowsView(Helpers, APIView):
-    parser_classes = [JSONParser]
-
-    def post(self, request, *args, **kwargs):
-        print(f"DJANGO DropMissingRowsView POST: Received request. Session ID: {request.session.session_key}")
-        print(f"DJANGO DropMissingRowsView POST: Request data: {request.data}")
-
-        df = self._get_df_from_session(request)
-        filename = self._get_current_filename_from_session(request)
-
-        if df is None or filename is None:
-            print("DJANGO DropMissingRowsView POST: No active DataFrame or filename in session.")
-            return Response({"error": "No active data session. Please upload a file first."}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            original_row_count = len(df)
-            df_cleaned = df.dropna() # Default how='any', axis=0 (rows)
-            rows_dropped = original_row_count - len(df_cleaned)
-
-            self._save_df_to_session(request, df_cleaned) # Save the modified DataFrame
-
-            message = f"{rows_dropped} row(s) with any missing values dropped successfully."
-            if rows_dropped == 0:
-                message = "No rows found with missing values to drop."
-            
-            print(f"DJANGO DropMissingRowsView POST: {message}")
-            response_data = self._prepare_preview_response(df_cleaned, filename, message)
-            return Response(response_data, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            print(f"DJANGO DropMissingRowsView POST: Error dropping missing rows: {e}")
-            traceback.print_exc()
-            return Response({"error": f"An error occurred while dropping missing rows: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": f"An error occurred while processing missing rows: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # -----------------
