@@ -273,9 +273,68 @@ class ManageDataFrameView(APIView):
 # Missing value operations
 # ------------------------------------
 
-# Replace with 0
+# Fill missing values - mean, median, mode, constant
+class ReplaceMissingValuesView(Helpers, APIView): # Assuming Helpers is your DataFrameSessionMixin
+    parser_classes = [JSONParser]
+
+    def post(self, request, *args, **kwargs): 
+        print(f"DJANGO ReplaceMissingValuesView POST: Received request. Session ID: {request.session.session_key}")
+        print(f"DJANGO ReplaceMissingValuesView POST: Request data: {request.data}")
+
+        df = self._get_df_from_session(request)
+        filename = self._get_current_filename_from_session(request)
+
+        if df is None or filename is None:
+            print("DJANGO ReplaceMissingValuesView POST: No active DataFrame or filename in session.")
+            return Response({"error": "No active data session. Please upload a file first."}, status=status.HTTP_400_BAD_REQUEST)
+
+        fill_strategy = request.data.get('fill_strategy') # Expect 'fill_strategy' from frontend
+        columns_to_fill = request.data.get('columns_to_fill') # Expect 'columns_to_fill' as a list
+
+        if not fill_strategy:
+            return Response({"error": "Missing 'fill_strategy' parameter."}, status=status.HTTP_400_BAD_REQUEST)
+        if not columns_to_fill or not isinstance(columns_to_fill, list):
+            return Response({"error": "Missing or invalid 'columns_to_fill' parameter. It should be a list of column names."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate that all specified columns exist in the DataFrame
+        for col in columns_to_fill:
+            if col not in df.columns:
+                return Response({"error": f"Column '{col}' not found in the data."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            df_cleaned = df.copy()
+            message_parts = []
+
+            if fill_strategy.lower() == 'mean':
+                for column_name in columns_to_fill:
+                    if pd.api.types.is_numeric_dtype(df_cleaned[column_name]):
+                        col_mean = df_cleaned[column_name].mean()
+                        df_cleaned[column_name] = df[column_name].fillna(col_mean)
+                        message_parts.append(f"Column '{column_name}' filled with its mean ({col_mean:.2f}).")
+                    else:
+                        message_parts.append(f"Column '{column_name}' is not numeric; mean imputation skipped.")
+            ### Add elif for 'median', 'mode', 'constant' here later
+ 
+            else:
+                return Response({"error": f"Unsupported fill strategy: '{fill_strategy}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+            self._save_df_to_session(request, df_cleaned) # Save the modified DataFrame
+            
+            final_message = "Missing values processed. " + " ".join(message_parts)
+            if not message_parts: # Should not happen if strategy is valid
+                 final_message = "No changes made or strategy not fully implemented."
+
+            print(f"DJANGO ReplaceMissingValuesView POST: {final_message}")
+            response_data = self._prepare_preview_response(df_cleaned, filename, final_message)
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"DJANGO ReplaceMissingValuesView POST: Error replacing missing values: {e}")
+            traceback.print_exc()
+            return Response({"error": f"An error occurred while replacing missing values: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# Drop rows with missing values - ANY or ALL
 class HandleMissingRowsView(Helpers, APIView):
     parser_classes = [JSONParser]
 

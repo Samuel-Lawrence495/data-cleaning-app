@@ -5,6 +5,7 @@ import FileUploader from '../components/FileUploader';
 import DropColumn from '../components/DropColumn';
 import DropMissingRowsButton from '../components/DropMissing'; 
 import FilterRowsForm from '../components/FilterRowsForm';
+import ReplaceMissingValuesForm from '../components/ReplaceMissing';
 
 const API_DATAFRAME_BASE_URL = 'http://localhost:8000/data_cleaning_app/dataframe/';
 const API_DOWNLOAD_CSV_URL = `${API_DATAFRAME_BASE_URL}download/csv/`;
@@ -153,7 +154,16 @@ function HomePage() {
                                     onError={handleError}
                                     mainIsLoading={isLoading || isDownloading || isProcessingOperation} // Pass a combined loading state
                                 />
-                                {/* Add more buttons for other missing data ops here later */}
+                                                        {/* New Replace Missing Values Section */}
+                        <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px dashed #ccc' }}>
+                            {/* This section itself could be a component later if it gets many forms */}
+                            <ReplaceMissingValuesForm
+                                columns={sheetData.headers || []}
+                                onOperationComplete={handleOperationComplete} // Reusing generic handler
+                                onError={handleError}
+                                mainIsLoading={isLoading || isDownloading || isProcessingOperation}
+                            />
+                        </div>
                             </div>
                             {/* Row filtering */}
                             <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px dashed #ccc' }}>

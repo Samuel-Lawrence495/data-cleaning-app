@@ -28,6 +28,10 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173', # Your React app's development origin
+    # Add your production frontend URL here when you deploy
+]
 
 # Application definition
 
