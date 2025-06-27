@@ -6,6 +6,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 import pandas as pd
 import io
 import traceback 
+from sklearn.preprocessing import LabelEncoder
 
 # --------------
 # Helpers
@@ -502,3 +503,49 @@ class FilterRowsView(Helpers, APIView):
             print(f"DJANGO FilterRowsView POST: Error filtering rows: {e}")
             traceback.print_exc()
             return Response({"error": f"An error occurred while filtering rows: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# -----------------------------
+# Encoding operations
+# -----------------------------
+
+# Label & One-Hot Encoding 
+class EncodingView(Helpers, APIView):
+    parser_classes = JSONParser
+
+    def post(self, request, *args, **kwargs):
+        df = self._get_df_from_session(request)
+        filename = self._get_current_filename_from_session(request)
+
+        if df is None or filename is None:
+            print("DJANGO ReplaceMissingValuesView POST: No active DataFrame or filename in session.")
+            return Response({"error": "No active data session. Please upload a file first."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        strat = request.data.get('strat') # get the encoding strategy 
+        categorical_cols = request.data.get('categorical-cols') # expect the categorical columns as a list
+        if strat not in ['label', 'one-hot']: # validate encoding strategy
+            return Response({"error": "Invalid 'strategy' parameter. Must be 'label' or 'one-hot'."}, status=status.HTTP_400_BAD_REQUEST)
+        if not categorical_cols or not isinstance(categorical_cols, list):
+            return Response({"error": "Missing or invalid 'categorical_cols' parameter. It should be a list of column names."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # label encoding
+            df_cleaned = df.copy()
+            if strat == 'label':
+                # Initialize LabelEncoder
+                label_encoder = LabelEncoder()              
+
+                # Apply Label Encoding to each categorical column
+                for col in categorical_cols:
+                    df_cleaned[col] = label_encoder.fit_transform(df_cleaned[col])
+            elif strat == 'one-hot':
+                # Apply One Hot Encoding to each categorical column
+                df_cleaned = pd.get_dummies(df_cleaned, columns=categorical_cols)
+            else:
+                return Response({"error": "Missing or invalid 'strat' parameter."}, status=status.HTTP_400_BAD_REQUEST)
+            # Save to session
+            self._save_df_to_session(request, df_cleaned)
+        except Exception as e:
+            print(f"DJANGO FilterRowsView POST: Error encoding cols: {e}")
+            traceback.print_exc()
+            return Response({"error": f"An error occurred while encoding data: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
