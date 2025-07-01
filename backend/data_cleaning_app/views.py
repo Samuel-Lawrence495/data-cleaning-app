@@ -508,44 +508,63 @@ class FilterRowsView(Helpers, APIView):
 # Encoding operations
 # -----------------------------
 
-# Label & One-Hot Encoding 
-class EncodingView(Helpers, APIView):
-    parser_classes = JSONParser
+# Label & One-Hot ENcoding
+class EncodingView(Helpers, APIView): 
+    parser_classes = [JSONParser]
 
     def post(self, request, *args, **kwargs):
+        print(f"DJANGO EncodingView POST: Received request. Session ID: {request.session.session_key}")
+        print(f"DJANGO EncodingView POST: Request data: {request.data}")
+
         df = self._get_df_from_session(request)
         filename = self._get_current_filename_from_session(request)
 
         if df is None or filename is None:
-            print("DJANGO ReplaceMissingValuesView POST: No active DataFrame or filename in session.")
             return Response({"error": "No active data session. Please upload a file first."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        strat = request.data.get('strat') # get the encoding strategy 
-        categorical_cols = request.data.get('categorical-cols') # expect the categorical columns as a list
-        if strat not in ['label', 'one-hot']: # validate encoding strategy
-            return Response({"error": "Invalid 'strategy' parameter. Must be 'label' or 'one-hot'."}, status=status.HTTP_400_BAD_REQUEST)
-        if not categorical_cols or not isinstance(categorical_cols, list):
-            return Response({"error": "Missing or invalid 'categorical_cols' parameter. It should be a list of column names."}, status=status.HTTP_400_BAD_REQUEST)
+
+        encoding_strategy = request.data.get('encoding_strategy')
+        columns_to_encode = request.data.get('columns_to_encode')
+
+        if not encoding_strategy or encoding_strategy.lower() not in ['label', 'one-hot']:
+            return Response({"error": "Invalid or missing 'encoding_strategy'. Must be 'label' or 'one-hot'."}, status=status.HTTP_400_BAD_REQUEST)
+        if not columns_to_encode or not isinstance(columns_to_encode, list) or len(columns_to_encode) == 0:
+            return Response({"error": "Missing or invalid 'columns_to_encode'. It should be a non-empty list of column names."}, status=status.HTTP_400_BAD_REQUEST)
+        for col in columns_to_encode:
+            if col not in df.columns:
+                return Response({"error": f"Column '{col}' not found in the data."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # label encoding
             df_cleaned = df.copy()
-            if strat == 'label':
-                # Initialize LabelEncoder
-                label_encoder = LabelEncoder()              
+            strategy_lower = encoding_strategy.lower()
 
-                # Apply Label Encoding to each categorical column
-                for col in categorical_cols:
-                    df_cleaned[col] = label_encoder.fit_transform(df_cleaned[col])
-            elif strat == 'one-hot':
-                # Apply One Hot Encoding to each categorical column
-                df_cleaned = pd.get_dummies(df_cleaned, columns=categorical_cols)
+            if strategy_lower == 'label':
+                print(f"DJANGO EncodingView: Applying Label Encoding to: {columns_to_encode}")
+                for col in columns_to_encode:
+                    # Ensure column is treated as categorical for encoding
+                    df_cleaned[col] = df_cleaned[col].astype('category')
+                    df_cleaned[col] = df_cleaned[col].cat.codes 
+                message = f"Label Encoding applied to columns: {', '.join(columns_to_encode)}."
+
+            elif strategy_lower == 'one-hot':
+                print(f"DJANGO EncodingView: Applying One-Hot Encoding to: {columns_to_encode}")
+                # Handle potential for too many new columns
+                original_col_count = len(df_cleaned.columns)
+                df_cleaned = pd.get_dummies(df_cleaned, columns=columns_to_encode, prefix=columns_to_encode, dtype=int)
+                new_col_count = len(df_cleaned.columns)
+                cols_added = new_col_count - (original_col_count - len(columns_to_encode))
+                message = f"One-Hot Encoding applied to {len(columns_to_encode)} column(s), creating {cols_added} new columns."
             else:
-                return Response({"error": "Missing or invalid 'strat' parameter."}, status=status.HTTP_400_BAD_REQUEST)
-            # Save to session
+                 # This case is already handled by initial validation, but as a safeguard:
+                return Response({"error": "Internal server error: Invalid encoding strategy reached logic block."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
             self._save_df_to_session(request, df_cleaned)
+            print(f"DJANGO EncodingView: {message}")
+            response_data = self._prepare_preview_response(df_cleaned, filename, message)
+            return Response(response_data, status=status.HTTP_200_OK)
+
         except Exception as e:
-            print(f"DJANGO FilterRowsView POST: Error encoding cols: {e}")
+            print(f"DJANGO EncodingView: Error encoding columns: {e}")
             traceback.print_exc()
             return Response({"error": f"An error occurred while encoding data: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

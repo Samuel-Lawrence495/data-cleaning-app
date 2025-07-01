@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import DropMissingRowsButton from './DropMissing'; 
 import FilterRowsForm from './FilterRowsForm'; 
 import ReplaceMissingValuesForm from './ReplaceMissing'; 
+import EncodingForm from './EncodingForm';
 
 // You'll pass API URLs or handler functions from HomePage
 // For simplicity, let's assume HomePage handles the API calls via callbacks
@@ -20,6 +21,7 @@ function CleaningToolbar({
 }) {
     const [showFilterForm, setShowFilterForm] = useState(false);
     const [showImputeForm, setShowImputeForm] = useState(false);
+    const [showEncodingForm, setShowEncodingForm] = useState(false);
 
     const handleFilterSubmit = async (filterPayload) => {
         if (onFilterRows) { // Assuming onFilterRows is the actual API call handler from HomePage
@@ -55,6 +57,14 @@ function CleaningToolbar({
                         {isTableInEditMode ? 'View Mode' : 'Edit Mode'}
                     </button>
                 )}
+
+            </div>
+
+                        <div style={toolbarStyle.group}>
+                <span style={toolbarStyle.groupLabel}>Machine Learning Prep:</span>
+                <button onClick={() => setShowEncodingForm(!showEncodingForm)} disabled={mainIsLoading} style={toolbarStyle.button}>
+                    {showEncodingForm ? 'Hide Encoding Form' : 'Encode Data'}
+                </button>
             </div>
 
 
@@ -100,7 +110,19 @@ function CleaningToolbar({
                     />
                 </div>
             )}
-            {/* Add more groups and buttons for other operations */}
+            {showEncodingForm && (
+                <div style={toolbarStyle.formContainer}>
+                    <EncodingForm
+                        columns={sheetData.headers || []}
+                        onOperationComplete={(updatedData) => {
+                            onOperationComplete(updatedData); // Pass up to HomePage
+                            setShowEncodingForm(false); // Close form on success
+                        }}
+                        onError={onError}
+                        mainIsLoading={mainIsLoading}
+                    />
+                </div>
+            )}
         </div>
     );
 }

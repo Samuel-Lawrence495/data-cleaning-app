@@ -71,14 +71,12 @@ function HomePage() {
     };
 
     const handleDownloadFile = async (format) => {
-        // ... (same as before, ensure it uses isDownloading and handleError)
          if (!sheetData || !sheetData.filename) {
              handleError("No data available to download.");
              return;
          }
          setIsDownloading(true);
          handleError('');
-         // ... (rest of your download logic using API_DOWNLOAD_CSV_URL/API_DOWNLOAD_XLSX_URL) ...
          let downloadUrl = format === 'csv' ? API_DOWNLOAD_CSV_URL : API_DOWNLOAD_XLSX_URL;
          try {
              const response = await axios.get(downloadUrl, {
