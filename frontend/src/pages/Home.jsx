@@ -1,4 +1,3 @@
-// src/pages/HomePage.jsx
 import React, { useState } from 'react';
 import axios from 'axios'; // Keep for direct API calls if any from HomePage
 import { saveAs } from 'file-saver';
@@ -7,14 +6,9 @@ import FileUploader from '../components/FileUploader';
 import DropColumn from '../components/DropColumn'; // This will now be mainly for table display
 import CleaningToolbar from '../components/CleaningToolbar'; // Import the new toolbar
 
-// API URLs - these might be passed to the toolbar or used in handlers here
 const API_DATAFRAME_BASE_URL = 'http://localhost:8000/data_cleaning_app/dataframe/';
 const API_DOWNLOAD_CSV_URL = `${API_DATAFRAME_BASE_URL}download/csv/`;
 const API_DOWNLOAD_XLSX_URL = `${API_DATAFRAME_BASE_URL}download/xlsx/`;
-// URLs for operations - individual components might manage these, or HomePage can
-// const API_DROP_MISSING_URL = `${API_DATAFRAME_BASE_URL}ops/drop-missing-rows/`;
-// const API_FILTER_ROWS_URL = `${API_DATAFRAME_BASE_URL}ops/filter-rows/`;
-// const API_REPLACE_MISSING_URL = `${API_DATAFRAME_BASE_URL}ops/replace-missing/`;
 
 
 function HomePage() {
@@ -26,7 +20,6 @@ function HomePage() {
     const [isTableInEditMode, setIsTableInEditMode] = useState(false); // For DropColumn's X buttons
 
     const handleDataLoaded = (data) => {
-        // ... (same as before)
          console.log("HomePage: handleDataLoaded called with data:", data);
          if (data && data.filename && data.headers && Array.isArray(data.headers)) {
              setSheetData(data);
@@ -49,8 +42,6 @@ function HomePage() {
         if (updatedData && updatedData.filename && updatedData.headers) {
              setSheetData(updatedData);
              setError('');
-             // Decide if table edit mode should be affected by other operations
-             // For now, let's keep it as is unless all columns are gone.
              if (updatedData.headers.length === 0) {
                  setIsTableInEditMode(false);
              }
@@ -61,7 +52,6 @@ function HomePage() {
     };
 
     const handleError = (errorMessage) => {
-        // ... (same as before)
          console.error("HomePage: handleError called with message:", errorMessage);
          if (errorMessage) {
              setError(errorMessage);
@@ -110,20 +100,22 @@ function HomePage() {
     const mainIsLoading = isLoading || isDownloading || isProcessingOperation;
 
     return (
-        <div className="homepage-layout" style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+        <div className="container mt-4">
             <header style={{ textAlign: 'center', marginBottom: '20px' }}>
                 <h1>My Awesome Data Cleaner</h1>
             </header>
             <main>
-                <section className="upload-section" style={{ marginBottom: '20px', padding: '15px', border: '1px solid #ddd', borderRadius: '5px' }}>
-                    <FileUploader
-                        apiUploadUrl={API_DATAFRAME_BASE_URL}
-                        onDataLoaded={handleDataLoaded}
-                        onError={handleError}
-                        setIsLoading={setIsLoading} // FileUploader controls its own upload loading
-                        isLoading={isLoading}
-                    />
-                </section>
+                <div className='card shadow-sm mb-4'>
+                    <div classname='card-body'>
+                        <FileUploader
+                            apiUploadUrl={API_DATAFRAME_BASE_URL}
+                            onDataLoaded={handleDataLoaded}
+                            onError={handleError}
+                            setIsLoading={setIsLoading} // FileUploader controls its own upload loading
+                            isLoading={isLoading}
+                        />
+                    </div>
+                </div>
 
                 {/* Loading/Error messages can be more central if needed */}
                 {isLoading && <p style={{ color: 'blue', textAlign: 'center' }}>Processing Upload...</p>}

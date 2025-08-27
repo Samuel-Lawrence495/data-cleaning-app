@@ -5,6 +5,7 @@ import './App.css';
 import ReactDOM from 'react-dom/client';
 import axios from 'axios';
 import { getCookie } from './utils/cookies'; // Adjust path if needed
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 // --- Axios Global Configuration ---
 const csrftoken = getCookie('csrftoken');

@@ -53,12 +53,6 @@ function FileUploader({ onDataLoaded, onError, setIsLoading, isLoading }) { // P
             <button onClick={handleUpload} disabled={isLoading || !selectedFile}>
                 {isLoading ? 'Uploading...' : 'Upload and Process'}
             </button>
-
-            {/*
-              The preview table should NOT be rendered here anymore.
-              HomePage will render it using DropColumn (which also handles preview)
-              once sheetData is set in HomePage's state.
-            */}
         </div>
     );
 }

@@ -60,14 +60,6 @@ function CleaningToolbar({
 
             </div>
 
-                        <div style={toolbarStyle.group}>
-                <span style={toolbarStyle.groupLabel}>Machine Learning Prep:</span>
-                <button onClick={() => setShowEncodingForm(!showEncodingForm)} disabled={mainIsLoading} style={toolbarStyle.button}>
-                    {showEncodingForm ? 'Hide Encoding Form' : 'Encode Data'}
-                </button>
-            </div>
-
-
             <div style={toolbarStyle.group}>
                 <span style={toolbarStyle.groupLabel}>Missing Values:</span>
                 <DropMissingRowsButton
@@ -85,6 +77,13 @@ function CleaningToolbar({
                 <span style={toolbarStyle.groupLabel}>Filter:</span>
                 <button onClick={() => setShowFilterForm(!showFilterForm)} disabled={mainIsLoading} style={toolbarStyle.button}>
                     {showFilterForm ? 'Hide Filter Form' : 'Filter Rows'}
+                </button>
+            </div>
+
+            <div style={toolbarStyle.group}>
+                <span style={toolbarStyle.groupLabel}>Machine Learning Prep:</span>
+                <button onClick={() => setShowEncodingForm(!showEncodingForm)} disabled={mainIsLoading} style={toolbarStyle.button}>
+                    {showEncodingForm ? 'Hide Encoding Form' : 'Encode Data'}
                 </button>
             </div>
 

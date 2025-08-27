@@ -1,4 +1,3 @@
-// src/components/DropColumn.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -75,16 +74,10 @@ function DropColumn({ initialData, onDataUpdated, onError, apiBaseUrl, isEditMod
                 )}
             </h3>
 
-            {/* The "Edit Data" button is now controlled by HomePage/CleaningToolbar and passes `isEditMode` as a prop */}
-
             {/* Only render table if there are headers */}
             {data.headers && data.headers.length > 0 ? (
-                <div style={{ width: '100%', overflowX: 'auto', border: '1px solid #ddd', borderRadius: '4px', paddingBottom: '10px' }}>
-                    <table style={{
-                        borderCollapse: 'collapse',
-                        minWidth: 'max-content', // Allow table to be wider than container
-                        width: '100%', // Make table try to fill container, but minWidth allows overflow
-                    }}>
+                <div className="table-responsive">
+                    <table className="table table-striped table-bordered table-hover table-sm">
                         <thead>
                             <tr>
                                 {data.headers.map((header, index) => (
